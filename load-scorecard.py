@@ -45,7 +45,7 @@ def load_data(file_path):
 
         for row in scoreboard_data:
             insert_query = f"""
-                INSERT INTO College_SB_AnnualT4 ({', '.join(sb_cols.values())})
+                INSERT INTO College_SB_Annual ({', '.join(sb_cols.values())})
                 VALUES ({', '.join(['%s'] * len(sb_cols))})
             """
             try:
@@ -74,7 +74,7 @@ def load_data(file_path):
 
         for row in financial_data:
             insert_query = f"""
-                INSERT INTO Financial_DataTest4 ({', '.join(fin_cols.values())})
+                INSERT INTO Financial_Data ({', '.join(fin_cols.values())})
                 VALUES ({', '.join(['%s'] * len(fin_cols))})
             """
             try:

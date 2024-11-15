@@ -42,7 +42,7 @@ def load_ipeds(file_path):
 
         for _, row in inst_data.iterrows():
             insert_query = f"""
-                INSERT INTO InstitutionsTest2 ({', '.join(inst_cols.values())})
+                INSERT INTO Institutions ({', '.join(inst_cols.values())})
                 VALUES ({', '.join(['%s'] * len(inst_cols))})
             """
             try:
@@ -59,7 +59,7 @@ def load_ipeds(file_path):
         crosswalk_data = ipeds_df[cw_cols].map(process_value)
         for _, row in crosswalk_data.iterrows():
             insert_query = """
-                INSERT INTO CrosswalksTest (UNITID, OPEID)
+                INSERT INTO Crosswalks (UNITID, OPEID)
                 VALUES (%s, %s)
             """
             try:
