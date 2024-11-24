@@ -1,6 +1,7 @@
 import psycopg
 import pandas as pd
 import sys
+from tqdm import tqdm  # Import tqdm for the progress bar
 from credentials import DB_NAME, DB_USER, DB_PASSWORD
 
 DB_HOST = "pinniped.postgres.database.azure.com"
@@ -43,7 +44,8 @@ def load_data(file_path):
             axis=1
         )
 
-        for row in scoreboard_data:
+        print("Uploading data to College_SB_Annual table:")
+        for row in tqdm(scoreboard_data, total=len(scoreboard_data), desc="College_SB_Annual"):
             insert_query = f"""
                 INSERT INTO College_SB_Annual ({', '.join(sb_cols.values())})
                 VALUES ({', '.join(['%s'] * len(sb_cols))})
@@ -72,7 +74,8 @@ def load_data(file_path):
             axis=1
         )
 
-        for row in financial_data:
+        print("Uploading data to Financial_Data table:")
+        for row in tqdm(financial_data, total=len(financial_data), desc="Financial_Data"):
             insert_query = f"""
                 INSERT INTO Financial_Data ({', '.join(fin_cols.values())})
                 VALUES ({', '.join(['%s'] * len(fin_cols))})

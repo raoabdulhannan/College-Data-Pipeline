@@ -1,6 +1,7 @@
 import psycopg
 import pandas as pd
 import sys
+from tqdm import tqdm  # Importing tqdm for the progress bar
 from credentials import DB_NAME, DB_USER, DB_PASSWORD
 
 
@@ -40,7 +41,8 @@ def load_ipeds(file_path):
             lambda val: process_value(val)
         )
 
-        for _, row in inst_data.iterrows():
+        print("Uploading data to Institutions table:")
+        for _, row in tqdm(inst_data.iterrows(), total=len(inst_data), desc="Institutions"):
             insert_query = f"""
                 INSERT INTO Institutions ({', '.join(inst_cols.values())})
                 VALUES ({', '.join(['%s'] * len(inst_cols))})
@@ -56,8 +58,10 @@ def load_ipeds(file_path):
             else:
                 conn.commit()
 
-        crosswalk_data = ipeds_df[cw_cols].map(process_value)
-        for _, row in crosswalk_data.iterrows():
+        crosswalk_data = ipeds_df[cw_cols].applymap(process_value)
+
+        print("Uploading data to Crosswalks table:")
+        for _, row in tqdm(crosswalk_data.iterrows(), total=len(crosswalk_data), desc="Crosswalks"):
             insert_query = """
                 INSERT INTO Crosswalks (UNITID, OPEID)
                 VALUES (%s, %s)
