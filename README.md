@@ -9,7 +9,7 @@ This repository contains a comprehensive data pipeline and interactive dashboard
 
 ### 1. Database Pipeline
 
-#### Schema (`schema.sql`)
+#### Schema (`schema.ipynb`)
 Defines the SQL schema for the database, creating four main tables:
 - **Institutions**: Core institutional data (`UNITID` as the primary key).
 - **College_Scorecard_Annual**: Annual performance metrics with `(UNITID, YEAR)` as the primary key.
