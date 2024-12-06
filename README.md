@@ -9,7 +9,7 @@ This repository contains a comprehensive data pipeline and interactive dashboard
 
 ### 1. Database Pipeline
 
-#### Schema (`schema.ipynb`)
+#### Schema (`schema.sql`)
 Defines the SQL schema for the database, creating four main tables:
 - **Institutions**: Core institutional data (`UNITID` as the primary key).
 - **College_Scorecard_Annual**: Annual performance metrics with `(UNITID, YEAR)` as the primary key.
@@ -24,7 +24,7 @@ Defines the SQL schema for the database, creating four main tables:
 ### 2. Interactive Dashboard (dashboard.py)
 A Streamlit-based visualization tool that provides:
 - Regional and state-level analysis.
-- Year-over-year comparisons (2019-2023).
+- Year-over-year comparisons (2019-2022).
 - Interactive filters and visualizations.
 
 #### Key Metrics
