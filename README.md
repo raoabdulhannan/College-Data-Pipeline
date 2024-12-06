@@ -9,7 +9,7 @@ This repository contains a comprehensive data pipeline and interactive dashboard
 
 ### 1. Database Pipeline
 
-#### Schema (`schema.sql`)
+#### Schema (`schema.sql` or `schema.ipynb`)
 Defines the SQL schema for the database, creating four main tables:
 - **Institutions**: Core institutional data (`UNITID` as the primary key).
 - **College_Scorecard_Annual**: Annual performance metrics with `(UNITID, YEAR)` as the primary key.
@@ -52,10 +52,19 @@ DB_USER = "YOUR_USERNAME"
 DB_PASSWORD = "YOUR_PASSWORD"
 DB_HOST = "pinniped.postgres.database.azure.com"
 ```
-Initialize schema:
+
+Initialize schema (choose one option):
+
+#### Option 1: Using SQL File
 
 ```bash
 psql -h pinniped.postgres.database.azure.com -U YOUR_USERNAME -d YOUR_DATABASE_NAME -f schema.sql
+```
+
+#### Option 2: Using Jupyter Notebook
+
+```bash
+jupyter notebook schema.ipynb
 ```
 
 ### 2. Dashboard Setup
