@@ -1,109 +1,141 @@
-import psycopg
 import pandas as pd
 import sys
-from tqdm import tqdm  # Import tqdm for the progress bar
-from credentials import DB_NAME, DB_USER, DB_PASSWORD
-
-DB_HOST = "pinniped.postgres.database.azure.com"
-
-
-def process_value(value, column_name=None):
-    """Convert empty or invalid values to None and format currency."""
-    if pd.isnull(value) or value in ("", "-999"):
-        return None
-    if column_name in {"AVGFACSAL", "TUITIONFEE_IN", "TUITIONFEE_OUT",
-                       "TUITIONFEE_PROG", "NPT4_PUB", "DEBT_MDN",
-                       "MD_EARN_WNE_P8"} and value is not None:
-        # Format as currency string for PostgreSQL MONEY type
-        return f"${float(value):,.2f}"
-    return value
+from tqdm import tqdm
+from load import (
+    connect_to_db,
+    batch_insert,
+    process_chunk,
+    extract_year_from_filename,
+    clear_existing_data
+)
 
 
-def load_data(file_path):
-    """Loads college scoreboard data into schema tables."""
+def load_scorecard(file_path):
+    """
+    Loads College Scorecard data into the database.
+    Processes and loads data into both College_Scorecard_Annual
+    and Financial_Data tables.
+
+    The College Scorecard dataset contains comprehensive information about US
+    colleges, including admissions rates, graduation rates, faculty data, and
+    various financial metrics like tuition and student debt.
+
+    Processing Steps:
+    1. Extracts academic year from filename
+    2. Establishes database connection
+    3. Clears existing year's data
+    4. Processes institutional metrics
+    5. Processes financial data
+    6. Loads both datasets into their respective tables
+
+    Args:
+        file_path (str): Path to the College Scorecard CSV file
+
+    Raises:
+        Exception: If any step in the data loading process fails
+    """
     try:
-        conn = psycopg.connect(
-            host=DB_HOST,
-            dbname=DB_NAME,
-            user=DB_USER,
-            password=DB_PASSWORD
-        )
-        cur = conn.cursor()
 
-        df = pd.read_csv(file_path, encoding="windows-1252")
-        df["YEAR"] = 2022
+        # Extract academic year from filename (e.g., 2018_19 becomes 2019)
+        year = extract_year_from_filename(file_path, 'scorecard')
 
-        sb_cols = {
-            "UNITID": "UNITID", "YEAR": "YEAR", "ACCREDAGENCY": "ACCREDAGENCY",
-            "PREDDEG": "PREDDEG", "HIGHDEG": "HIGHDEG", "ADM_RATE": "ADM_RATE",
-            "C150_4": "C150_4", "C200_4": "C200_4", "AVGFACSAL": "AVGFACSAL"
+        # Establish database connection and prepare for new data
+        conn = connect_to_db()
+        print("Connected to database successfully")
+        clear_existing_data(conn, year, 'scorecard')
+
+        print("Reading CSV file...")
+        df = pd.read_csv(file_path, encoding="windows-1252", low_memory=False)
+        total_rows = len(df)
+        print(f"Total rows to process: {total_rows}")
+
+        scorecard_cols = {
+            "UNITID": "UNITID",
+            "ACCREDAGENCY": "ACCREDAGENCY",
+            "PREDDEG": "PREDDEG",
+            "HIGHDEG": "HIGHDEG",
+            "ADM_RATE": "ADM_RATE",
+            "C150_4": "C150_4",
+            "C200_4": "C200_4",
+            "AVGFACSAL": "AVGFACSAL"
         }
 
-        scoreboard_data = df[sb_cols.keys()].apply(
-            lambda row: [process_value(row[col], col) for col in sb_cols.keys()],
-            axis=1
-        )
-
-        print("Uploading data to College_SB_Annual table:")
-        for row in tqdm(scoreboard_data, total=len(scoreboard_data), desc="College_SB_Annual"):
-            insert_query = f"""
-                INSERT INTO College_SB_Annual ({', '.join(sb_cols.values())})
-                VALUES ({', '.join(['%s'] * len(sb_cols))})
-            """
-            try:
-                cur.execute(insert_query, tuple(row))
-            except psycopg.errors.ForeignKeyViolation as e:
-                print("Foreign key violation:", e)
-                conn.rollback()
-            except Exception as e:
-                print("An error occurred:", e)
-                conn.rollback()
-            else:
-                conn.commit()
-
-        fin_cols = {
-            "OPEID": "OPEID", "UNITID": "UNITID", "YEAR": "YEAR",
-            "TUITIONFEE_IN": "TUITIONFEE_IN", "TUITIONFEE_OUT": "TUITIONFEE_OUT",
-            "TUITIONFEE_PROG": "TUITIONFEE_PROG", "NPT4_PUB": "NPT4_PUB",
-            "PCTPELL": "PCTPELL", "DEBT_MDN": "DEBT_MDN", "RPY_3YR_RT": "RPY_3YR_RT",
-            "CDR2": "CDR2", "CDR3": "CDR3", "MD_EARN_WNE_P8": "MD_EARN_WNE_P8"
+        financial_cols = {
+            "OPEID": "OPEID",
+            "TUITIONFEE_IN": "TUITIONFEE_IN",
+            "TUITIONFEE_OUT": "TUITIONFEE_OUT",
+            "TUITIONFEE_PROG": "TUITIONFEE_PROG",
+            "PCTPELL": "PCTPELL",
+            "DEBT_MDN": "DEBT_MDN",
+            "RPY_3YR_RT": "RPY_3YR_RT",
+            "CDR2": "CDR2",
+            "CDR3": "CDR3",
+            "MD_EARN_WNE_P8": "MD_EARN_WNE_P8"
         }
 
-        financial_data = df[fin_cols.keys()].apply(
-            lambda row: [process_value(row[col], col) for col in fin_cols.keys()],
-            axis=1
-        )
+        print("Processing College Scorecard data...")
+        with tqdm(total=total_rows, desc="Processing Scorecard data") as pbar:
 
-        print("Uploading data to Financial_Data table:")
-        for row in tqdm(financial_data, total=len(financial_data), desc="Financial_Data"):
-            insert_query = f"""
-                INSERT INTO Financial_Data ({', '.join(fin_cols.values())})
-                VALUES ({', '.join(['%s'] * len(fin_cols))})
-            """
-            try:
-                cur.execute(insert_query, tuple(row))
-            except psycopg.errors.ForeignKeyViolation as e:
-                print("Foreign key violation:", e)
-                conn.rollback()
-            except Exception as e:
-                print("An error occurred:", e)
-                conn.rollback()
-            else:
-                conn.commit()
+            # Extract and deduplicate institutional metrics
+            scorecard_df = df[list(scorecard_cols.keys())].copy()
 
-        print("Data loaded with no errors")
+            # Keep first occurrence for each institution
+            scorecard_data = scorecard_df.drop_duplicates(
+                subset=['UNITID'], keep='first')
+            scorecard_data = process_chunk(scorecard_data, scorecard_cols)
+
+            # Add academic year reference
+            scorecard_data['YEAR'] = year
+            pbar.update(total_rows)
+
+        print("Processing Financial data...")
+        with tqdm(total=total_rows, desc="Processing Financial data") as pbar:
+
+            # Extract and deduplicate financial metrics
+            financial_df = df[list(financial_cols.keys())].copy()
+
+            # Keep first occurrence for each OPEID
+            financial_data = financial_df.drop_duplicates(
+                subset=['OPEID'], keep='first')
+            financial_data = process_chunk(financial_data, financial_cols)
+
+            # Add academic year reference
+            financial_data['YEAR'] = year
+            pbar.update(total_rows)
+
+        # Load processed data into respective tables
+        print("Loading data into College_Scorecard_Annual table...")
+        with tqdm(total=len(scorecard_data),
+                  desc="Loading Scorecard data") as pbar:
+
+            # Dropping rows with NA OPEID since it can't be NULL
+            financial_data = financial_data.dropna(subset=['OPEID'])
+            batch_insert(conn, "College_Scorecard_Annual", scorecard_data,
+                         pbar=pbar)
+
+        print("Loading data into Financial_Data table...")
+        with tqdm(total=len(financial_data),
+                  desc="Loading Financial data") as pbar:
+            batch_insert(conn, "Financial_Data", financial_data, pbar=pbar)
+
+        print("Data loading completed successfully")
 
     except Exception as e:
-        print("Database connection error:", e)
+        print(f"Error loading College Scorecard data: {str(e)}")
+        raise
 
-    cur.close()
-    conn.close()
+    finally:
+
+        # Ensure database connection is closed even if an error occurs
+        if 'conn' in locals():
+            conn.close()
+            print("Database connection closed")
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Script needs csv file as command line arg")
+        print("Usage: python load-scorecard.py <csv_file>")
         sys.exit(1)
 
     file_path = sys.argv[1]
-    load_data(file_path)
+    load_scorecard(file_path)
